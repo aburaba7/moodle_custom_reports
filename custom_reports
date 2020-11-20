@@ -138,3 +138,24 @@ SELECT
 ) gg ON gg.userid = u.id and gg.courseid = c.id
 
 WHERE r.id = 5 
+//Query below for exam start and end date
+SELECT mc.fullname , us.username , quiz.name, FROM_UNIXTIME(qa.timestart) ,FROM_UNIXTIME(qa.timefinish) , grade.grade
+
+FROM prefix_quiz quiz, prefix_quiz_attempts qa, prefix_course mc, prefix_user us, prefix_quiz_grades grade
+
+WHERE qa.quiz = grade.quiz
+
+AND qa.userid = grade.userid
+
+AND qa.quiz = quiz.id
+
+AND qa.userid = us.id
+
+AND us.id = grade.userid
+
+AND quiz.course=mc.id
+
+//List of users with Authentication
+SELECT username, auth FROM prefix_user
+
+
