@@ -12,3 +12,129 @@ FROM prefix_course AS course
 JOIN prefix_enrol AS en ON en.courseid = course.id
 JOIN prefix_user_enrolments AS ue ON ue.enrolid = en.id
 JOIN prefix_user AS user2 ON ue.userid = user2.id
+
+
+//Resource count in courses
+SELECT 
+COUNT(*) AS COUNT
+,r.course 
+,c.shortname shortname
+,c.fullname coursename
+,( SELECT DISTINCT CONCAT(u.firstname,' ',u.lastname)
+  FROM prefix_role_assignments AS ra
+  JOIN prefix_user AS u ON ra.userid = u.id
+  JOIN prefix_context AS ctx ON ctx.id = ra.contextid
+  WHERE ra.roleid = 3 AND ctx.instanceid = r.course AND ctx.contextlevel = 50 LIMIT 1) AS Teacher
+FROM prefix_resource r 
+JOIN prefix_course c ON r.course = c.id
+WHERE c.category IN (10,13,28,18,26)
+GROUP BY r.course
+ORDER BY COUNT(*) DESC
+
+//Quiz activity and question types in each course
+
+SELECT prefix_course.id id, prefix_course.shortname shortname, prefix_course.fullname fullname, prefix_quiz.name quizname, Count(prefix_quiz_attempts.attempt) attempts
+
+FROM prefix_course prefix_course, prefix_quiz prefix_quiz, prefix_quiz_attempts prefix_quiz_attempts
+
+WHERE prefix_course.id = prefix_quiz.course AND prefix_quiz.id = prefix_quiz_attempts.quiz
+
+GROUP BY prefix_course.id, prefix_quiz.name, prefix_course.shortname, prefix_course.fullname ORDER BY id DESC
+
+//Select users Who have NEVER logged in
+SELECT id, concat( firstname, " ", lastname ) AS name, lastaccess, lastlogin, currentlogin
+FROM prefix_user
+WHERE currentlogin = 0
+AND lastlogin = 0
+AND lastaccess = 0
+AND deleted = 0
+
+//Delete users Who have NEVER logged in
+UPDATE prefix_user
+SET deleted=1
+WHERE currentlogin = 0
+AND lastlogin = 0
+AND lastaccess = 0
+AND deleted = 0
+//sql query that get all required grading assignment for all the courses
+SELECT   c.category AS ClassRoom
+          , c.id AS CourseID 
+          , a.id AS AssignmentID
+          , asb.id AS SubmissiontID
+          , u.id AS UserID
+          , c.fullname AS Course
+          , a.name AS Assignment
+          , CONCAT('', a.name, '') AS Assignmentlink
+          , CONCAT(u.firstname, ' ', u.lastname) AS UserName
+          , ag.grade AS Grade
+          , gi.grademax AS GradeMax
+          , FROM_UNIXTIME(asb.timemodified) AS timemodified
+     FROM prefix_assign_submission asb
+     JOIN prefix_assign              a ON a.id = asb.assignment
+     JOIN prefix_assign_grades      ag ON ag.assignment = a.id AND asb.userid = ag.userid
+     JOIN prefix_user                u ON u.id = asb.userid AND u.deleted = 0
+     JOIN prefix_course              c ON c.id = a.course
+     JOIN prefix_modules            mo ON mo.name = 'assign'
+     JOIN prefix_course_modules     cm ON a.course = cm.course AND cm.instance = a.id AND cm.module = mo.id
+     JOIN prefix_grade_items        gi ON a.course = gi.courseid AND gi.itemmodule = 'assign' AND a.id = gi.iteminstance
+ GROUP BY u.id, a.id
+ORDER BY c.category, c.id
+//1) showed all enrolled users
+2) showed their "final grade" from a lesson activity type 
+3) showed their "final grade" from the actual quiz
+/You will need to change the course.id value to your course id.
+SELECT
+user2.firstname AS Firstname,
+user2.lastname AS Lastname,
+user2.email AS Email,
+course.fullname AS Course,
+course.shortname as Course_code
+, prefix_grade_items.courseid
+, prefix_grade_items.itemmodule
+, prefix_grade_items.itemname
+, ROUND(prefix_grade_items.grademax,0) as grademax
+, ROUND(prefix_grade_grades.finalgrade, 0) AS finalgrade
+, from_unixtime(prefix_grade_grades.timecreated) AS timecreated
+
+
+FROM prefix_course AS course
+left outer JOIN prefix_enrol AS en ON en.courseid = course.id
+left outer JOIN prefix_user_enrolments AS ue ON ue.enrolid = en.id
+left outer JOIN prefix_user AS user2 ON ue.userid = user2.id
+left outer join prefix_grade_grades  on user2.id = prefix_grade_grades.userid
+left outer join   prefix_grade_items   on prefix_grade_grades.itemid = prefix_grade_items.id 
+
+where course.id = '474'
+
+//Lists the name of every student enrolled, their course name, their grade and number of days since last login
+SELECT
+ u.firstname AS first,
+ u.lastname AS last,
+ u.idnumber AS ID,
+ u.institution AS School,
+ c.shortname AS coursefullname,
+ COALESCE(ROUND(gg.finalgrade,0),0) as finalgrade,
+CASE
+WHEN DATEDIFF (NOW(), FROM_UNIXTIME(u.lastaccess))>200
+THEN "never started"
+ELSE
+CONCAT (DATEDIFF (NOW(), FROM_UNIXTIME(u.lastaccess)), " ", "days")
+END AS last_logged_in
+
+FROM prefix_user u
+INNER JOIN prefix_role_assignments ra ON ra.userid = u.id
+INNER JOIN prefix_context ct ON ct.id = ra.contextid
+INNER JOIN prefix_course c ON c.id = ct.instanceid
+INNER JOIN prefix_role r ON r.id = ra.roleid
+LEFT JOIN
+(
+SELECT
+  u.id AS userid,c.id as courseid,
+  g.finalgrade AS finalgrade
+  FROM prefix_user u
+  JOIN prefix_grade_grades g ON g.userid = u.id
+  JOIN prefix_grade_items gi ON g.itemid =  gi.id
+  JOIN prefix_course c ON c.id = gi.courseid where gi.itemtype = 'course'
+) gg ON gg.userid = u.id and gg.courseid = c.id
+
+WHERE r.id = 5 
